@@ -35,7 +35,7 @@ async def disconnect():
 @router.post("/home")
 async def home():
     lh = state.get_lh()
-    await lh.home()
+    await lh.backend.home()
     return {"status": "homed"}
 
 
