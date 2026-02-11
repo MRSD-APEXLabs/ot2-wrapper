@@ -1,0 +1,23 @@
+robot:
+  host: "192.168.0.61"
+  traversal_height: 120
+
+deck:
+  - slot: 9
+    type: tip_rack
+    ot_name: "opentrons_96_filtertiprack_20ul"
+    name: "20uL Tip Rack 1"
+
+  - slot: 6
+    type: plate
+    ot_name: "agilent_96_wellplate_150uL_Ub"
+    name: "premixplate"
+
+  - slot: 4
+    type: tube_rack
+    ot_name: "opentrons_24_aluminumblock_nest_1.5ml_snapcap"
+    name: "tube_rack"
+    tubes:
+      - position: 0
+        tube_type: "Eppendorf_DNA_LoBind_1_5ml_Vb"
+        name: "tube_01"
