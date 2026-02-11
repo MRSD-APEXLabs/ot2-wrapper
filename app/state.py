@@ -1,8 +1,6 @@
 """Singleton LiquidHandler and resource registry."""
 
-from __future__ import annotations
-
-import copy
+import importlib
 import logging
 from pathlib import Path
 from typing import Any
@@ -10,14 +8,12 @@ from typing import Any
 import yaml
 from fastapi import HTTPException
 
-import opentrons_shared_data.labware
-from pylabrobot.liquid_handling import LiquidHandler
-from pylabrobot.liquid_handling.backends.opentrons_backend import OpentronsBackend
+from pylabrobot.liquid_handling import LiquidHandler, OpentronsOT2Backend
 from pylabrobot.resources import Resource
 from pylabrobot.resources.opentrons import OTDeck
 from pylabrobot.resources.opentrons.load import (
-    load_shared_opentrons_resource,
-    ot_definition_to_resource,
+    load_ot_tip_rack,
+    load_ot_tube_rack
 )
 
 logger = logging.getLogger(__name__)
@@ -73,27 +69,20 @@ def unregister_resource(name: str) -> None:
 # ---------------------------------------------------------------------------
 
 def create_tip_rack(ot_name: str, name: str) -> Any:
-    return load_shared_opentrons_resource(ot_name, name)
+    return load_ot_tip_rack(ot_name, name)
 
 
 def create_plate(resource_type: str, name: str) -> Any:
-    return load_shared_opentrons_resource(resource_type, name)
+    module = importlib.import_module("pylabrobot.resources")
+    try:
+        cls = getattr(module, resource_type)
+    except AttributeError:
+        raise HTTPException(status_code=400, detail=f"Unknown plate type: {resource_type}")
+    return cls(name=name)
 
 
 def create_tube_rack(ot_name: str, name: str) -> Any:
-    """Load an aluminum-block / tube-rack definition as a well plate.
-
-    Opentrons categorises these as 'aluminumBlock' or 'tubeRack', which
-    ``ot_definition_to_resource`` does not handle natively.  We patch the
-    display category to 'wellPlate' so the existing converter creates a
-    Plate with Wells that work for liquid handling operations.
-    """
-    data = opentrons_shared_data.labware.load_definition(ot_name, version=1)
-    # The converter only supports wellPlate/tipRack.  Tube racks and
-    # aluminum blocks are structurally identical to well plates.
-    data = copy.deepcopy(data)
-    data["metadata"]["displayCategory"] = "wellPlate"
-    return ot_definition_to_resource(data, name)
+    return load_ot_tube_rack(ot_name, name)
 
 
 # ---------------------------------------------------------------------------
@@ -112,7 +101,7 @@ async def connect(
         raise HTTPException(status_code=400, detail="Already connected")
 
     deck = OTDeck()
-    backend = OpentronsBackend(host=host, port=port)
+    backend = OpentronsOT2Backend(host=host, port=port)
     lh = LiquidHandler(backend=backend, deck=deck)
 
     # Load deck config before setup so resources are on the deck
