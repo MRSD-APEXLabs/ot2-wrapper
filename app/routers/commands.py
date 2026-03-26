@@ -24,6 +24,14 @@ def _to_plr_offsets(offsets: list[Coordinate] | None) -> list[PLRCoordinate] | N
     return [PLRCoordinate(x=o.x, y=o.y, z=o.z) for o in offsets]
 
 
+def _get_tip_channel(lh) -> int:
+    """Return the index of the first channel that currently has a tip."""
+    for channel, tracker in lh.head.items():
+        if tracker.has_tip:
+            return channel
+    raise HTTPException(status_code=400, detail="No channel has a tip mounted")
+
+
 def _get_children(resource_name: str, well_indices: list[int]):
     """Resolve well/tip-spot children by integer index."""
     resource = state.get_resource(resource_name)
@@ -76,26 +84,28 @@ async def return_tips(body: ReturnTipsRequest | None = None):
 @router.post("/aspirate")
 async def aspirate(body: AspirateRequest):
     lh = state.get_lh()
+    tip_channel = _get_tip_channel(lh)
     wells = _get_children(body.resource_name, body.well_indices)
-    offsets = _to_plr_offsets(body.offsets)
 
-    kwargs: dict = {}
-    if body.flow_rates is not None:
-        kwargs["flow_rates"] = body.flow_rates
-
-    await lh.aspirate(wells, vols=body.volumes, offsets=offsets, **kwargs)
+    for i, well in enumerate(wells):
+        offsets = _to_plr_offsets([body.offsets[i]] if body.offsets else None)
+        kwargs: dict = {}
+        if body.flow_rates is not None:
+            kwargs["flow_rates"] = [body.flow_rates[i]]
+        await lh.aspirate([well], vols=[body.volumes[i]], offsets=offsets, use_channels=[tip_channel], **kwargs)
     return {"status": "ok"}
 
 
 @router.post("/dispense")
 async def dispense(body: DispenseRequest):
     lh = state.get_lh()
+    tip_channel = _get_tip_channel(lh)
     wells = _get_children(body.resource_name, body.well_indices)
-    offsets = _to_plr_offsets(body.offsets)
 
-    kwargs: dict = {}
-    if body.flow_rates is not None:
-        kwargs["flow_rates"] = body.flow_rates
-
-    await lh.dispense(wells, vols=body.volumes, offsets=offsets, **kwargs)
+    for i, well in enumerate(wells):
+        offsets = _to_plr_offsets([body.offsets[i]] if body.offsets else None)
+        kwargs: dict = {}
+        if body.flow_rates is not None:
+            kwargs["flow_rates"] = [body.flow_rates[i]]
+        await lh.dispense([well], vols=[body.volumes[i]], offsets=offsets, use_channels=[tip_channel], **kwargs)
     return {"status": "ok"}
