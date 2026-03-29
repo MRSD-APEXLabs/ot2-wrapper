@@ -15,6 +15,7 @@ from pylabrobot.resources.opentrons.load import (
     load_ot_tip_rack,
     load_ot_tube_rack
 )
+from pylabrobot.resources.tube import Tube
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +83,17 @@ def create_plate(resource_type: str, name: str) -> Any:
 
 
 def create_tube_rack(ot_name: str, name: str) -> Any:
-    return load_ot_tube_rack(ot_name, name)
+    rack = load_ot_tube_rack(ot_name, name)
+    for holder in rack.children:
+        tube = Tube(
+            name=f"{name}_{holder.name}",
+            size_x=holder.get_size_x(),
+            size_y=holder.get_size_y(),
+            size_z=holder.get_size_z(),
+            max_volume=holder.get_size_x() * holder.get_size_y() * holder.get_size_z(),
+        )
+        holder.assign_child_resource(tube)
+    return rack
 
 
 # ---------------------------------------------------------------------------
