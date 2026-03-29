@@ -6,7 +6,7 @@ dependencies = [
     "fastapi",
     "uvicorn",
     "pyyaml",
-    "pylabrobot[all] @ git+https://github.com/pylabrobot/pylabrobot.git",
+    "pylabrobot[all] @ git+https://github.com/pylabrobot/pylabrobot.git#egg=59d02b7",
     "opentrons-shared-data",
 ]
 
