@@ -2,7 +2,7 @@ import logging
 
 from fastapi import APIRouter, HTTPException
 
-from pylabrobot.resources import Coordinate as PLRCoordinate
+from pylabrobot.resources import Container, Coordinate as PLRCoordinate
 
 from app import state
 from app.models import (
@@ -36,8 +36,16 @@ def _get_children(resource_name: str, well_indices: list[int]):
     """Resolve well/tip-spot children by integer index."""
     resource = state.get_resource(resource_name)
     children = resource.children
+    def _unwrap(child):
+        if isinstance(child, Container):
+            return child
+        # ResourceHolder (e.g. tube rack slot) — return the contained item
+        if child.children:
+            return child.children[0]
+        return child
+
     try:
-        return [children[i] for i in well_indices]
+        return [_unwrap(children[i]) for i in well_indices]
     except IndexError:
         raise HTTPException(
             status_code=400,
