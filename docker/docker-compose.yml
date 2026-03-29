@@ -1,0 +1,12 @@
+name: ot2-wrapper
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    command: bash -c "docker/ot2-wrapper/start.sh"
+    volumes:
+      - ../.:/code
+#     - This line should mount root_dir of main_storage onto docker container
+    ports:
+      - "8000:8000"
