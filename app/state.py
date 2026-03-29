@@ -91,6 +91,7 @@ def create_tube_rack(ot_name: str, name: str) -> Any:
             size_y=holder.get_size_y(),
             size_z=holder.get_size_z(),
             max_volume=holder.get_size_x() * holder.get_size_y() * holder.get_size_z(),
+            material_z_thickness=0,
         )
         holder.assign_child_resource(tube)
     return rack
