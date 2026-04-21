@@ -11,6 +11,7 @@ from fastapi import HTTPException
 from pylabrobot.liquid_handling import LiquidHandler, OpentronsOT2Backend
 from pylabrobot.resources import Resource
 from pylabrobot.resources.opentrons import OTDeck
+from pylabrobot.resources.volume_tracker import set_volume_tracking
 from pylabrobot.resources.opentrons.load import (
     load_ot_tip_rack,
     load_ot_tube_rack
@@ -18,6 +19,8 @@ from pylabrobot.resources.opentrons.load import (
 from pylabrobot.resources.tube import Tube
 
 logger = logging.getLogger(__name__)
+
+set_volume_tracking(False)
 
 # ---------------------------------------------------------------------------
 # Module-level state
