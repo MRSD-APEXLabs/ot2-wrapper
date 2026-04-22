@@ -289,7 +289,7 @@ def main():
         # ---- connect ----
         test_connect(base, args.host)
         test_double_connect(base, args.host)
-        test_home(base)
+        # test_home(base)
 
         # ---- deck ----
         test_deck_empty(base)
@@ -302,7 +302,7 @@ def main():
         test_pick_up_tips(base, "test_tips")
         test_aspirate(base, "test_plate")
         # test_dispense(base, "test_plate")
-        # test_return_tips(base)
+        test_return_tips(base)
         # test_drop_tips_trash(base, "test_tips")
         #
         # # ---- cleanup ----
@@ -310,6 +310,7 @@ def main():
         # test_remove_slot(base, slot=6)
         # test_remove_slot(base, slot=4)
         # test_remove_empty_slot(base)
+        test_home(base)
         test_disconnect(base)
 
     # ---- summary ----
