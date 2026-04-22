@@ -20,8 +20,6 @@ from pylabrobot.resources.tube import Tube
 
 logger = logging.getLogger(__name__)
 
-set_volume_tracking(False)
-
 # ---------------------------------------------------------------------------
 # Module-level state
 # ---------------------------------------------------------------------------
