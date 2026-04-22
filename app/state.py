@@ -20,6 +20,18 @@ from pylabrobot.resources.tube import Tube
 
 logger = logging.getLogger(__name__)
 
+# Patch ot_api requestor to log raw HTTP bodies for debugging
+import ot_api.requestor as _requestor
+_orig_post = _requestor.post
+
+def _logged_post(path: str, data=None):
+    if data is not None:
+        import json
+        logger.info("OT-2 HTTP POST %s body=%s", path, json.dumps(data))
+    return _orig_post(path, data)
+
+_requestor.post = _logged_post
+
 # ---------------------------------------------------------------------------
 # Module-level state
 # ---------------------------------------------------------------------------
