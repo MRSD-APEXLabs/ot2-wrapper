@@ -1,6 +1,7 @@
 import logging
 
 from fastapi import APIRouter, HTTPException
+from ot_api.decorators import OTError
 
 from pylabrobot.resources import Container, Coordinate as PLRCoordinate
 
@@ -100,7 +101,12 @@ async def aspirate(body: AspirateRequest):
         kwargs: dict = {}
         if body.flow_rates is not None:
             kwargs["flow_rates"] = [body.flow_rates[i]]
-        await lh.aspirate([well], vols=[body.volumes[i]], offsets=offsets, use_channels=[tip_channel], **kwargs)
+        logger.info("aspirate well=%s vol=%.1f channel=%d", well.name, body.volumes[i], tip_channel)
+        try:
+            await lh.aspirate([well], vols=[body.volumes[i]], offsets=offsets, use_channels=[tip_channel], **kwargs)
+        except OTError as e:
+            logger.error("OT-2 rejected aspirate: %s", e)
+            raise HTTPException(status_code=400, detail=str(e))
     return {"status": "ok"}
 
 
@@ -115,5 +121,10 @@ async def dispense(body: DispenseRequest):
         kwargs: dict = {}
         if body.flow_rates is not None:
             kwargs["flow_rates"] = [body.flow_rates[i]]
-        await lh.dispense([well], vols=[body.volumes[i]], offsets=offsets, use_channels=[tip_channel], **kwargs)
+        logger.info("dispense well=%s vol=%.1f channel=%d", well.name, body.volumes[i], tip_channel)
+        try:
+            await lh.dispense([well], vols=[body.volumes[i]], offsets=offsets, use_channels=[tip_channel], **kwargs)
+        except OTError as e:
+            logger.error("OT-2 rejected dispense: %s", e)
+            raise HTTPException(status_code=400, detail=str(e))
     return {"status": "ok"}
