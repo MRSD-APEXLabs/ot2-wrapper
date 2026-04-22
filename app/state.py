@@ -20,14 +20,21 @@ from pylabrobot.resources.tube import Tube
 
 logger = logging.getLogger(__name__)
 
-# Patch ot_api requestor to log raw HTTP bodies for debugging
+# Patch ot_api requestor to log raw HTTP bodies and fix dispense_in_place bug.
+# ot_api.lh.dispense_in_place sends commandType "aspirateInPlace" instead of
+# "dispenseInPlace" — identifiable by the "pushOut" param that aspirate never has.
+import json as _json
 import ot_api.requestor as _requestor
 _orig_post = _requestor.post
 
 def _logged_post(path: str, data=None):
     if data is not None:
-        import json
-        logger.info("OT-2 HTTP POST %s body=%s", path, json.dumps(data))
+        cmd = data.get("data", {})
+        if (cmd.get("commandType") == "aspirateInPlace"
+                and "pushOut" in cmd.get("params", {})):
+            cmd["commandType"] = "dispenseInPlace"
+            logger.warning("ot_api bug: corrected aspirateInPlace → dispenseInPlace")
+        logger.info("OT-2 HTTP POST %s body=%s", path, _json.dumps(data))
     return _orig_post(path, data)
 
 _requestor.post = _logged_post
