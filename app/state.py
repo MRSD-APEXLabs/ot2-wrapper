@@ -8,7 +8,8 @@ from typing import Any
 import yaml
 from fastapi import HTTPException
 
-from pylabrobot.liquid_handling import LiquidHandler, OpentronsOT2Backend
+from pylabrobot.liquid_handling import LiquidHandler
+from app.ot2_backend import OpentronsOT2Backend
 from pylabrobot.resources import Resource
 from pylabrobot.resources.opentrons import OTDeck
 from pylabrobot.resources.volume_tracker import set_volume_tracking

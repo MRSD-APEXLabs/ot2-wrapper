@@ -73,7 +73,13 @@ async def drop_tips(body: DropTipsRequest):
     if body.resource_name is None:
         # Drop to trash
         trash = lh.deck.get_trash_area()
-        await lh.drop_tips(trash, offsets=offsets)
+        # Trash must be a sequence, and trackers must be cleared on success.
+        for channel, tracker in lh.head.items():
+            if tracker.has_tip:
+                await lh.drop_tips(
+                    [trash], use_channels=[channel], offsets=offsets,
+                    allow_nonzero_volume=True,
+                )
     else:
         tip_spots = _get_children(body.resource_name, body.well_indices or [])
         await lh.drop_tips(tip_spots, offsets=offsets)
