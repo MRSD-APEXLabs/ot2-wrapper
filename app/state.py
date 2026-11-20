@@ -134,6 +134,8 @@ async def connect(
 
     deck = OTDeck()
     backend = OpentronsOT2Backend(host=host, port=port)
+    # PLR hardcodes traversal_height = 120 in __init__; override it.
+    backend.traversal_height = traversal_height
     lh = LiquidHandler(backend=backend, deck=deck)
 
     # Load deck config before setup so resources are on the deck
