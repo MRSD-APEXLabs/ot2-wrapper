@@ -177,10 +177,84 @@ class TestConnect:
             assert state_mod._host == "10.0.0.1"
             mock_instance.setup.assert_awaited_once()
 
-    async def test_raises_400_if_already_connected(self, mock_lh):
-        with pytest.raises(HTTPException) as exc_info:
-            await connect("10.0.0.2")
-        assert exc_info.value.status_code == 400
+    async def test_reuses_a_healthy_session(self, mock_lh):
+        state_mod._session_key = ("10.0.0.1", 31950, 120.0, None)
+        with patch.object(state_mod.ot_api, "run_id", "run-1"), \
+             patch.object(state_mod.ot_api.runs, "get_run",
+                          return_value={"status": "idle", "current": True}), \
+             patch.object(state_mod, "LiquidHandler") as MockLH:
+            reused = await connect("10.0.0.1", port=31950)
+
+        assert reused is True
+        assert state_mod._lh is mock_lh
+        MockLH.assert_not_called()
+        mock_lh.stop.assert_not_awaited()
+
+    @pytest.mark.parametrize("run", [
+        {"status": "stopped", "current": True},
+        {"status": "failed", "current": True},
+        {"status": "idle", "current": False},
+        Exception("404 run not found"),  # OT-2 rebooted
+    ])
+    async def test_rebuilds_a_dead_session(self, mock_lh, run):
+        state_mod._session_key = ("10.0.0.1", 31950, 120.0, None)
+        get_run = MagicMock(side_effect=run) if isinstance(run, Exception) \
+            else MagicMock(return_value=run)
+        with patch.object(state_mod.ot_api, "run_id", "run-1"), \
+             patch.object(state_mod.ot_api.runs, "get_run", get_run), \
+             patch.object(state_mod, "OTDeck"), \
+             patch.object(state_mod, "OpentronsOT2Backend"), \
+             patch.object(state_mod, "LiquidHandler") as MockLH:
+            new_lh = AsyncMock()
+            MockLH.return_value = new_lh
+            reused = await connect("10.0.0.1", port=31950)
+
+        assert reused is False
+        mock_lh.stop.assert_awaited_once()
+        assert state_mod._lh is new_lh
+        new_lh.setup.assert_awaited_once()
+
+    async def test_rebuilds_when_settings_change(self, mock_lh):
+        state_mod._session_key = ("10.0.0.1", 31950, 120.0, None)
+        with patch.object(state_mod.ot_api, "run_id", "run-1"), \
+             patch.object(state_mod.ot_api.runs, "get_run",
+                          return_value={"status": "idle", "current": True}), \
+             patch.object(state_mod, "OTDeck"), \
+             patch.object(state_mod, "OpentronsOT2Backend"), \
+             patch.object(state_mod, "LiquidHandler") as MockLH:
+            MockLH.return_value = AsyncMock()
+            reused = await connect("10.0.0.2", port=31950)
+
+        assert reused is False
+        assert state_mod._host == "10.0.0.2"
+        mock_lh.stop.assert_awaited_once()
+
+    async def test_rebuilds_when_deck_config_is_edited(self, mock_lh, tmp_path):
+        cfg = tmp_path / "deck.yaml"
+        cfg.write_text("deck: []\n")
+        state_mod._session_key = ("10.0.0.1", 31950, 120.0, (str(cfg), -1.0))  # older mtime
+        with patch.object(state_mod.ot_api, "run_id", "run-1"), \
+             patch.object(state_mod.ot_api.runs, "get_run",
+                          return_value={"status": "idle", "current": True}), \
+             patch.object(state_mod, "OTDeck"), \
+             patch.object(state_mod, "OpentronsOT2Backend"), \
+             patch.object(state_mod, "LiquidHandler") as MockLH:
+            MockLH.return_value = AsyncMock()
+            reused = await connect("10.0.0.1", port=31950, deck_config_path=cfg)
+
+        assert reused is False
+
+    async def test_failed_stop_of_the_old_session_does_not_block_the_rebuild(self, mock_lh):
+        mock_lh.stop.side_effect = Exception("robot unreachable")
+        with patch.object(state_mod.ot_api, "run_id", None), \
+             patch.object(state_mod, "OTDeck"), \
+             patch.object(state_mod, "OpentronsOT2Backend"), \
+             patch.object(state_mod, "LiquidHandler") as MockLH:
+            new_lh = AsyncMock()
+            MockLH.return_value = new_lh
+            await connect("10.0.0.1", port=31950)
+
+        assert state_mod._lh is new_lh
 
 
 class TestDisconnect:

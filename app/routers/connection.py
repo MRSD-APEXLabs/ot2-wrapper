@@ -17,13 +17,14 @@ async def connect(body: ConnectRequest | None = None):
         str(settings.deck_config_path) if settings.deck_config_path else None
     )
 
-    await state.connect(
+    # Idempotent: keeps a healthy session, rebuilds a dead or outdated one.
+    reused = await state.connect(
         host=host,
         port=port,
         traversal_height=traversal_height,
         deck_config_path=deck_config,
     )
-    return {"status": "connected", "host": host}
+    return {"status": "connected", "host": host, "reused": reused}
 
 
 @router.post("/disconnect")

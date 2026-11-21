@@ -5,6 +5,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
+import ot_api
 import yaml
 from fastapi import HTTPException
 
@@ -30,6 +31,11 @@ import app.ot_api_patches  # noqa: F401,E402
 _lh: LiquidHandler | None = None
 _host: str | None = None
 _resources: dict[str, Resource] = {}  # name → resource
+# What the current session was built from; a connect asking for anything else rebuilds it.
+_session_key: tuple | None = None
+
+# Run statuses after which the OT-2 robot-server no longer accepts commands for that run.
+_DEAD_RUN_STATUSES = {"stop-requested", "stopped", "finishing", "failed", "succeeded"}
 
 
 def get_lh() -> LiquidHandler:
@@ -106,16 +112,76 @@ def create_tube_rack(ot_name: str, name: str) -> Any:
 # Connect / Disconnect
 # ---------------------------------------------------------------------------
 
+def _deck_config_stamp(path: str | Path | None) -> tuple | None:
+    """Path and mtime of the deck config, so an edited file triggers a rebuild."""
+    if path is None:
+        return None
+    try:
+        return (str(path), Path(path).stat().st_mtime)
+    except OSError:
+        return (str(path), None)
+
+
+def _session_problem() -> str | None:
+    """Why the current OT-2 run can no longer take commands, or None if it still can.
+
+    Catches the OT-2 rebooting or its robot-server restarting (run gone), and the run being
+    cancelled or replaced from elsewhere (not current / terminal status).
+    """
+    run_id = ot_api.run_id
+    if not run_id:
+        return "no run id"
+    try:
+        run = ot_api.runs.get_run(run_id)
+    except Exception as e:  # 404 after a reboot, unreachable robot, ...
+        return f"run {run_id} unreadable: {e}"
+    status = run.get("status")
+    if status in _DEAD_RUN_STATUSES:
+        return f"run {run_id} is {status}"
+    if run.get("current") is False:
+        return f"run {run_id} is no longer the current run"
+    return None
+
+
+async def _teardown() -> None:
+    """Drop the current session; a stop that fails (robot gone) still clears local state."""
+    global _lh, _host, _session_key
+    lh, _lh, _host, _session_key = _lh, None, None, None
+    _resources.clear()
+    if lh is not None:
+        try:
+            await lh.stop()
+        except Exception as e:
+            logger.warning("Stopping the old OT-2 session failed (ignored): %s", e)
+
+
 async def connect(
     host: str,
     port: int = 31950,
     traversal_height: float = 120.0,
     deck_config_path: str | Path | None = None,
-) -> None:
-    global _lh, _host
+) -> bool:
+    """Make sure a working session to the OT-2 exists. Returns True if the existing one was kept.
 
+    Idempotent, so callers can connect before every protocol instead of disconnecting after
+    each: a healthy session with the same settings is kept as is (no new run, no homing, and
+    the pipette's tip state is preserved). A dead session, or one built from different
+    settings or an edited deck config, is torn down and rebuilt.
+    """
+    global _lh, _host, _session_key
+
+    key = (host, port, traversal_height, _deck_config_stamp(deck_config_path))
     if _lh is not None:
-        raise HTTPException(status_code=400, detail="Already connected")
+        if key != _session_key:
+            problem = "connect settings or deck config changed"
+        else:
+            problem = _session_problem()
+        if problem is None:
+            logger.info("Already connected to OT-2 at %s:%s — reusing session (run %s)",
+                        host, port, ot_api.run_id)
+            return True
+        logger.warning("Rebuilding OT-2 session: %s", problem)
+        await _teardown()
 
     deck = OTDeck()
     backend = OpentronsOT2Backend(host=host, port=port)
@@ -127,19 +193,22 @@ async def connect(
     if deck_config_path is not None:
         _load_deck_config(lh, Path(deck_config_path))
 
-    await lh.setup()
+    try:
+        await lh.setup()  # new OT-2 run + home
+    except Exception:
+        _resources.clear()
+        raise
     _lh = lh
     _host = host
-    logger.info("Connected to OT-2 at %s:%s", host, port)
+    _session_key = key
+    logger.info("Connected to OT-2 at %s:%s (run %s)", host, port, ot_api.run_id)
+    return False
 
 
 async def disconnect() -> None:
-    global _lh, _host
-    lh = get_lh()
-    await lh.stop()
-    _lh = None
-    _host = None
-    _resources.clear()
+    """Cancel the OT-2 run (frees the robot for the Opentrons App) and clear state."""
+    get_lh()  # 503 if not connected
+    await _teardown()
     logger.info("Disconnected from OT-2")
 
 

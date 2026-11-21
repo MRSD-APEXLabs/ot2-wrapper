@@ -100,9 +100,11 @@ def test_connect(base: str, host: str):
 
 
 def test_double_connect(base: str, host: str):
-    print("\n=== Double connect guard ===")
+    print("\n=== Second connect reuses the session ===")
     r = requests.post(f"{base}/robot/connect", json={"host": host})
-    check("POST /robot/connect again → 400", r, expected_status=400)
+    data = check("POST /robot/connect again → reused", r)
+    if data:
+        assert data.get("reused") is True, "Expected the healthy session to be reused"
 
 
 def test_home(base: str):

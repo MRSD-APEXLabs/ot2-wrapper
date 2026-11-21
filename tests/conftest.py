@@ -15,6 +15,7 @@ def _reset_state():
     yield
     state_mod._lh = None
     state_mod._host = None
+    state_mod._session_key = None
     state_mod._resources.clear()
 
 

@@ -65,8 +65,8 @@ Resource types:
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/robot/connect` | Connect to OT-2 (body can override host/port/traversal_height) |
-| `POST` | `/robot/disconnect` | Disconnect and clear state |
+| `POST` | `/robot/connect` | Connect to OT-2 (body can override host/port/traversal_height). Idempotent: a healthy session with the same settings is reused (`"reused": true`, no new run, no homing); a dead one (OT-2 rebooted, run cancelled/replaced) or changed settings/edited deck config is rebuilt |
+| `POST` | `/robot/disconnect` | Cancel the OT-2 run and clear state. Needed only to free the robot for the Opentrons App |
 | `POST` | `/robot/home` | Home the robot |
 | `GET` | `/robot/status` | Connection status |
 
